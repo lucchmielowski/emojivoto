@@ -1,5 +1,11 @@
 #!/usr/bin/env sh
 
+# Use system protoc if available, otherwise fall back to downloading
+if command -v protoc >/dev/null 2>&1; then
+    exec protoc "$@"
+fi
+
+# Fallback to original download logic if system protoc is not available
 set -eu
 
 if [ "$(uname -s)" = Darwin ]; then
@@ -13,7 +19,7 @@ bindir=$( cd "${0%/*}" && pwd )
 targetbin=$( cd "$bindir"/.. && pwd )/target/bin
 protocversion=3.18.0
 protocbin=$targetbin/protoc-$protocversion
-protocurl=https://github.com/google/protobuf/releases/download/v$protocversion/protoc-$protocversion-$os-$arch.zip
+protocurl=https://github.com/protocolbuffers/protobuf/releases/download/v$protocversion/protoc-$protocversion-$os-$arch.zip
 
 require_from() {
     if ! command -v "$1" >/dev/null 2>/dev/null ; then

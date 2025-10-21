@@ -11,6 +11,10 @@
     "react-router-dom": "^5.1.2",
     "whatwg-fetch": "^3.0.0"
   },
+  "scripts": {
+    "webpack": "node --openssl-legacy-provider ./node_modules/.bin/webpack",
+    "webpack-dev-server": "node --openssl-legacy-provider ./node_modules/.bin/webpack-dev-server"
+  },
   "devDependencies": {
     "@babel/cli": "^7.8.4",
     "@babel/core": "^7.9.6",
