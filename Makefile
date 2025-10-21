@@ -44,6 +44,17 @@ clean:
 dev:
 	docker-compose up --build
 
+# Kind: load Docker images into kind cluster nodes (requires kind installed)
+.PHONY: kind-image-load
+
+kind-image-load:
+	@echo "Loading images into kind cluster nodes..."
+	kind load docker-image ghcr.io/lucchmielowski/emojivoto-web:$(IMAGE_TAG)
+	kind load docker-image ghcr.io/lucchmielowski/emojivoto-emoji-svc:$(IMAGE_TAG)
+	kind load docker-image ghcr.io/lucchmielowski/emojivoto-voting-svc:$(IMAGE_TAG)
+	@echo "✅ Images loaded into kind cluster."
+
+
 # Deploy to local kubernetes
 deploy:
 	kubectl apply -k kustomize/deployment/
