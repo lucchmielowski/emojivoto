@@ -32,7 +32,7 @@ spec:
           value: "8080"
         - name: PROM_PORT
           value: "8801"
-        image: ghcr.io/lucchmielowski/emojivoto-emoji-svc:latest
+        image: ghcr.io/lucchmielowski/emojivoto/emojivoto-emoji-svc:v20
         name: emoji-svc
         ports:
         - containerPort: 8080

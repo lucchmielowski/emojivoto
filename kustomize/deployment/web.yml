@@ -36,7 +36,7 @@ spec:
           value: voting-svc.emojivoto:8080
         - name: INDEX_BUNDLE
           value: dist/index_bundle.js
-        image: ghcr.io/lucchmielowski/emojivoto-web:latest
+        image: ghcr.io/lucchmielowski/emojivoto/emojivoto-web:v20
         name: web-svc
         ports:
         - containerPort: 8080
