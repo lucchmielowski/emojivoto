@@ -1,4 +1,4 @@
-module github.com/buoyantio/emojivoto
+module github.com/lucchmielowski/emojivoto
 
 go 1.24.0
 

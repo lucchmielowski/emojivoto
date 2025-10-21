@@ -7,8 +7,8 @@ import (
 	"math/rand"
 	"time"
 
-	pb "github.com/buoyantio/emojivoto/emojivoto-voting-svc/gen/proto"
-	"github.com/buoyantio/emojivoto/emojivoto-voting-svc/voting"
+	pb "github.com/lucchmielowski/emojivoto/emojivoto-voting-svc/gen/proto"
+	"github.com/lucchmielowski/emojivoto/emojivoto-voting-svc/voting"
 	"google.golang.org/grpc"
 )
 

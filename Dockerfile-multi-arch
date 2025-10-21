@@ -1,12 +1,13 @@
-ARG svc_name
+ARG svc_name=emojivoto-emoji-svc
 
 # go build stage
-FROM --platform=$BUILDPLATFORM golang:1.15.0 as golang
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS golang
 WORKDIR /emojivoto-build
 
-# install protobuf
-RUN apt-get update && apt-get install -y protobuf-compiler
-RUN go get github.com/golang/protobuf/protoc-gen-go
+# install protobuf and build tools
+RUN apk add --no-cache protobuf-dev protoc build-base git
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.31.0
+RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
 
 # cache go dependencies
 COPY go.mod go.sum .
@@ -19,17 +20,19 @@ ARG svc_name
 RUN GOARCH=$TARGETARCH make -C $svc_name clean protoc compile
 
 # webpack stage
-FROM --platform=$BUILDPLATFORM node:14-buster as webpack-bundle
+FROM --platform=$BUILDPLATFORM node:20-alpine AS webpack-bundle
 WORKDIR /emojivoto-build
+# Install make and other build tools needed for the build process
+RUN apk add --no-cache make
 COPY . .
 RUN make -C emojivoto-web clean webpack package-web
 
-FROM golang as build-emojivoto-emoji-svc
-FROM golang as build-emojivoto-voting-svc
-FROM golang as build-emojivoto-web
+FROM golang AS build-emojivoto-emoji-svc
+FROM golang AS build-emojivoto-voting-svc
+FROM golang AS build-emojivoto-web
 COPY --from=webpack-bundle /emojivoto-build/emojivoto-web/target/ /emojivoto-build/emojivoto-web/target/
 
-FROM build-$svc_name as build
+FROM build-$svc_name AS build
 
 # runtime image
 FROM debian:bullseye-slim
@@ -46,6 +49,6 @@ ARG svc_name
 COPY --from=build /emojivoto-build/$svc_name/target/ /usr/local/bin/
 
 # ARG variables are not available for ENTRYPOINT
-ENV SVC_NAME $svc_name
+ENV SVC_NAME=$svc_name
 WORKDIR /usr/local/bin
-ENTRYPOINT $SVC_NAME
+ENTRYPOINT ["/bin/sh", "-c", "exec \"$SVC_NAME\" \"$@\""]

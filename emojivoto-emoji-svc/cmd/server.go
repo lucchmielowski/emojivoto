@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"contrib.go.opencensus.io/exporter/ocagent"
-	"github.com/buoyantio/emojivoto/emojivoto-emoji-svc/api"
-	"github.com/buoyantio/emojivoto/emojivoto-emoji-svc/emoji"
-	"github.com/grpc-ecosystem/go-grpc-prometheus"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/lucchmielowski/emojivoto/emojivoto-emoji-svc/api"
+	"github.com/lucchmielowski/emojivoto/emojivoto-emoji-svc/emoji"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opencensus.io/plugin/ocgrpc"
 	"go.opencensus.io/trace"
