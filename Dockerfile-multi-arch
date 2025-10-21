@@ -1,54 +1,46 @@
 ARG svc_name=emojivoto-emoji-svc
 
-# go build stage
-FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS golang
-WORKDIR /emojivoto-build
+# Build stage
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+WORKDIR /build
 
-# install protobuf and build tools
-RUN apk add --no-cache protobuf-dev protoc build-base git
+# Install build tools
+RUN apk add --no-cache protobuf-dev protoc build-base git make
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.31.0
 RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
 
-# cache go dependencies
-COPY go.mod go.sum .
+# Copy dependencies first for better caching
+COPY go.mod go.sum ./
 RUN go mod download
 
-# compile
+# Copy source and build
 COPY . .
 ARG TARGETARCH
 ARG svc_name
 RUN GOARCH=$TARGETARCH make -C $svc_name clean protoc compile
 
-# webpack stage
-FROM --platform=$BUILDPLATFORM node:20-alpine AS webpack-bundle
-WORKDIR /emojivoto-build
-# Install make and other build tools needed for the build process
+# Webpack stage for web service
+FROM --platform=$BUILDPLATFORM node:20-alpine AS webpack
+WORKDIR /build
 RUN apk add --no-cache make
 COPY . .
 RUN make -C emojivoto-web clean webpack package-web
 
-FROM golang AS build-emojivoto-emoji-svc
-FROM golang AS build-emojivoto-voting-svc
-FROM golang AS build-emojivoto-web
-COPY --from=webpack-bundle /emojivoto-build/emojivoto-web/target/ /emojivoto-build/emojivoto-web/target/
+# Combine builds
+FROM builder AS build-web
+COPY --from=webpack /build/emojivoto-web/target/ /build/emojivoto-web/target/
 
-FROM build-$svc_name AS build
+FROM builder AS build-emoji
+FROM builder AS build-voting
 
-# runtime image
+# Runtime stage
 FROM debian:bullseye-slim
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        curl \
-        dnsutils \
-        iptables \
-        jq \
-        nghttp2 \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl dnsutils iptables jq nghttp2 && rm -rf /var/lib/apt/lists/*
 
 ARG svc_name
-COPY --from=build /emojivoto-build/$svc_name/target/ /usr/local/bin/
+COPY --from=build-$svc_name /build/$svc_name/target/ /usr/local/bin/
 
-# ARG variables are not available for ENTRYPOINT
 ENV SVC_NAME=$svc_name
 WORKDIR /usr/local/bin
 ENTRYPOINT ["/bin/sh", "-c", "exec \"$SVC_NAME\" \"$@\""]

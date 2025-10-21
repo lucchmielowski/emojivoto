@@ -1,254 +1,63 @@
-# Build and Release Docker Images
-# 
-# This workflow builds and pushes multi-architecture Docker images for all EmojiVoto services.
-# 
-# Features:
-# - Supports both git tags and manual workflow dispatch
-# - Multi-architecture builds (amd64, arm64, arm/v7)
-# - Optimized caching strategy
-# - Comprehensive error handling and validation
-# - Dynamic service matrix configuration
-# - Rich build summaries with links
-#
-# Usage:
-# - Push a semantic version tag (e.g., v1.2.3) to trigger automatic builds
-# - Use workflow_dispatch for manual builds with custom tags
-#
-name: Build and Release Docker Images
+name: Build and Release
 
 on:
   push:
-    tags: 
-      - 'v*.*.*'  # Semantic versioning tags (e.g., v1.2.3)
-      - 'v*.*'    # Major.minor tags (e.g., v1.2)
-      - 'v*'      # Major tags (e.g., v1)
+    tags: ['v*']
   workflow_dispatch:
     inputs:
-      custom_tag:
-        description: 'Custom tag to build (overrides git tag)'
-        required: false
+      tag:
+        description: 'Tag to build (e.g., v1.0.0)'
+        required: true
         type: string
-      skip_prerelease_tag:
-        description: 'Skip prerelease tag generation'
-        required: false
-        type: boolean
-        default: false
 
-# Workflow configuration
 env:
-  # Container registry configuration
   REGISTRY: ghcr.io
   IMAGE_NAMESPACE: lucchmielowski
-  
-  # Build configuration
-  DOCKERFILE_PATH: ./Dockerfile-multi-arch
-  SUPPORTED_PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7
-  
-  # Service configuration
-  SERVICES: |
-    emojivoto-web
-    emojivoto-emoji-svc
-    emojivoto-voting-svc
-  
-  # Build optimization
-  CACHE_SCOPE_PREFIX: emojivoto-build
+  PLATFORMS: linux/amd64,linux/arm64
 
 jobs:
-  # Extract and validate version information from the tag
-  extract-version:
+  build:
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      major-minor: ${{ steps.version.outputs.major_minor }}
-      major: ${{ steps.version.outputs.major }}
-      is-prerelease: ${{ steps.version.outputs.is_prerelease }}
-      image_base: ${{ steps.version.outputs.image_base }}
-    
-    steps:
-      - name: Extract and validate version
-        id: version
-        run: |
-          # Determine version source
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.custom_tag }}" ]]; then
-            VERSION="${{ github.event.inputs.custom_tag }}"
-            echo "📝 Using custom tag from workflow dispatch: $VERSION"
-          elif [[ $GITHUB_REF == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/}
-            echo "🏷️ Using git tag: $VERSION"
-          else
-            echo "❌ Error: This workflow requires either a git tag or manual dispatch with custom_tag"
-            exit 1
-          fi
-          
-          # Validate semantic versioning format
-          if [[ ! $VERSION =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)(-.*)?$ ]]; then
-            echo "❌ Error: Invalid version format: $VERSION"
-            echo "Expected format: v1.2.3 or v1.2.3-alpha"
-            exit 1
-          fi
-          
-          # Extract version components
-          MAJOR=${BASH_REMATCH[1]}
-          MINOR=${BASH_REMATCH[2]}
-          PATCH=${BASH_REMATCH[3]}
-          PRERELEASE=${BASH_REMATCH[4]:-}
-          
-          # Handle prerelease tag skipping
-          SKIP_PRERELEASE="${{ github.event.inputs.skip_prerelease_tag }}"
-          if [[ "$SKIP_PRERELEASE" == "true" ]]; then
-            PRERELEASE=""
-            echo "⏭️ Skipping prerelease tag as requested"
-          fi
-          
-          # Set outputs
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "major_minor=v$MAJOR.$MINOR" >> $GITHUB_OUTPUT
-          echo "major=v$MAJOR" >> $GITHUB_OUTPUT
-          echo "is_prerelease=$([ -n "$PRERELEASE" ] && echo "true" || echo "false")" >> $GITHUB_OUTPUT
-          echo "image_base=${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}" >> $GITHUB_OUTPUT
-          
-          # Log extracted information
-          echo "✅ Version extracted successfully:"
-          echo "   Full version: $VERSION"
-          echo "   Major: v$MAJOR"
-          echo "   Major.Minor: v$MAJOR.$MINOR"
-          echo "   Prerelease: $([ -n "$PRERELEASE" ] && echo "yes ($PRERELEASE)" || echo "no")"
-
-  # Build and push Docker images for all services
-  build-and-push:
-    needs: extract-version
-    runs-on: ubuntu-latest
-    
-    # Required permissions for GitHub Container Registry
     permissions:
       contents: read
       packages: write
-      id-token: write  # For OIDC authentication
     
-    # Build all services in parallel with optimized strategy
     strategy:
       matrix:
-        service: ${{ fromJSON(format('["{0}"]', join('","', fromJSON(env.SERVICES)))) }}
-      fail-fast: false  # Continue building other services if one fails
-      max-parallel: 3   # Limit concurrent builds to avoid resource contention
+        service: [emojivoto-web, emojivoto-emoji-svc, emojivoto-voting-svc]
     
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Fetch full history for better caching
 
-      - name: 🐳 Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          platforms: ${{ env.SUPPORTED_PLATFORMS }}
 
-      - name: 🔐 Log in to Container Registry
+      - name: Login to Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🏷️ Generate image tags
-        id: tags
+      - name: Extract tag
+        id: tag
         run: |
-          SERVICE_NAME="${{ matrix.service }}"
-          IMAGE_BASE="${{ needs.extract-version.outputs.image_base }}/$SERVICE_NAME"
-          
-          # Core tags for all releases
-          TAGS=(
-            "$IMAGE_BASE:${{ needs.extract-version.outputs.version }}"
-            "$IMAGE_BASE:${{ needs.extract-version.outputs.major-minor }}"
-            "$IMAGE_BASE:${{ needs.extract-version.outputs.major }}"
-            "$IMAGE_BASE:latest"
-          )
-          
-          # Add prerelease tag if applicable
-          if [[ "${{ needs.extract-version.outputs.is-prerelease }}" == "true" ]]; then
-            TAGS+=("$IMAGE_BASE:prerelease")
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
-          
-          # Join tags with comma separator
-          TAGS_STRING=$(IFS=','; echo "${TAGS[*]}")
-          
-          echo "tags=$TAGS_STRING" >> $GITHUB_OUTPUT
-          echo "📋 Generated tags for $SERVICE_NAME:"
-          printf '%s\n' "${TAGS[@]}" | sed 's/^/   /'
 
-      - name: 🔨 Build and push multi-architecture image
+      - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ${{ env.DOCKERFILE_PATH }}
-          platforms: ${{ env.SUPPORTED_PLATFORMS }}
+          file: ./Dockerfile-multi-arch
+          platforms: ${{ env.PLATFORMS }}
           push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ steps.tag.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:latest
           build-args: |
             svc_name=${{ matrix.service }}
-          tags: ${{ steps.tags.outputs.tags }}
-          labels: |
-            org.opencontainers.image.title=${{ matrix.service }}
-            org.opencontainers.image.description=EmojiVoto ${{ matrix.service }} service
-            org.opencontainers.image.version=${{ needs.extract-version.outputs.version }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
-            org.opencontainers.image.licenses=MIT
-            org.opencontainers.image.vendor=EmojiVoto
-          cache-from: |
-            type=gha,scope=${{ env.CACHE_SCOPE_PREFIX }}-${{ matrix.service }}
-            type=gha,scope=${{ env.CACHE_SCOPE_PREFIX }}-base
-          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE_PREFIX }}-${{ matrix.service }}
-
-      - name: ✅ Build completed
-        if: success()
-        run: |
-          echo "🎉 Successfully built and pushed ${{ matrix.service }}"
-          echo "📦 Primary image: ${{ needs.extract-version.outputs.image_base }}/${{ matrix.service }}:${{ needs.extract-version.outputs.version }}"
-          echo "🏷️ All tags:"
-          echo "${{ steps.tags.outputs.tags }}" | tr ',' '\n' | sed 's/^/   /'
-
-  # Summary job to report build status
-  build-summary:
-    needs: [extract-version, build-and-push]
-    runs-on: ubuntu-latest
-    if: always()
-    
-    steps:
-      - name: 📊 Generate Build Summary
-        run: |
-          echo "## 🚀 Build and Release Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Version information
-          echo "**Version:** ${{ needs.extract-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Registry:** ${{ needs.extract-version.outputs.image_base }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Platforms:** ${{ env.SUPPORTED_PLATFORMS }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Build status
-          if [[ "${{ needs.build-and-push.result }}" == "success" ]]; then
-            echo "✅ **Build Status:** All services built successfully" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### 📦 Released Images:" >> $GITHUB_STEP_SUMMARY
-            echo "${{ env.SERVICES }}" | while read -r service; do
-              echo "- \`$service:${{ needs.extract-version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
-            done
-          else
-            echo "❌ **Build Status:** Some builds failed" >> $GITHUB_STEP_SUMMARY
-            echo "Check the build logs for details." >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Release type
-          if [[ "${{ needs.extract-version.outputs.is-prerelease }}" == "true" ]]; then
-            echo "⚠️ **Note:** This is a prerelease version" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "🎯 **Status:** Stable release" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔗 Quick Links:" >> $GITHUB_STEP_SUMMARY
-          echo "- [Container Registry](https://${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }})" >> $GITHUB_STEP_SUMMARY
-          echo "- [Repository](https://${{ github.server_url }}/${{ github.repository }})" >> $GITHUB_STEP_SUMMARY

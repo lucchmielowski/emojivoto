@@ -1,42 +1,37 @@
 include ./common.mk
 
-.PHONY: web emoji-svc voting-svc integration-tests push
+.PHONY: all build push clean
 
-all: build integration-tests
+# Build all services
+all: build
 
-
-web:
+build:
 	$(MAKE) -C emojivoto-web
-
-emoji-svc:
 	$(MAKE) -C emojivoto-emoji-svc
-
-voting-svc:
 	$(MAKE) -C emojivoto-voting-svc
 
-build: web emoji-svc voting-svc
-
-multi-arch:
+# Build multi-arch containers and push
+push:
 	$(MAKE) -C emojivoto-web build-multi-arch
 	$(MAKE) -C emojivoto-emoji-svc build-multi-arch
 	$(MAKE) -C emojivoto-voting-svc build-multi-arch
 
-deploy-to-minikube:
-	$(MAKE) -C emojivoto-web build-container
-	$(MAKE) -C emojivoto-emoji-svc build-container
-	$(MAKE) -C emojivoto-voting-svc build-container
-	kubectl delete -f emojivoto.yml || echo "ok"
-	kubectl apply -f emojivoto.yml
+# Clean all build artifacts
+clean:
+	$(MAKE) -C emojivoto-web clean
+	$(MAKE) -C emojivoto-emoji-svc clean
+	$(MAKE) -C emojivoto-voting-svc clean
 
-deploy-to-docker-compose:
-	docker-compose stop
-	docker-compose rm -vf
-	$(MAKE) -C emojivoto-web build-container
-	$(MAKE) -C emojivoto-emoji-svc build-container
-	$(MAKE) -C emojivoto-voting-svc build-container
-	docker-compose -f ./docker-compose.yml up -d
+# Local development with docker-compose
+dev:
+	docker-compose up --build
 
-push-%:
-	docker push ghcr.io/lucchmielowski/emojivoto-$*:$(IMAGE_TAG)
+# Deploy to local kubernetes
+deploy:
+	kubectl apply -f kustomize/deployment/
 
-push: push-emoji-svc push-voting-svc push-web
+# Run tests
+test:
+	$(MAKE) -C emojivoto-web test
+	$(MAKE) -C emojivoto-emoji-svc test
+	$(MAKE) -C emojivoto-voting-svc test
