@@ -12,18 +12,18 @@ metadata:
   labels:
     app.kubernetes.io/name: emoji
     app.kubernetes.io/part-of: emojivoto
-    app.kubernetes.io/version: v11
+    app.kubernetes.io/version: latest
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: emoji-svc
-      version: v11
+      version: latest
   template:
     metadata:
       labels:
         app: emoji-svc
-        version: v11
+        version: latest
     spec:
       serviceAccountName: emoji
       containers:
@@ -32,7 +32,7 @@ spec:
           value: "8080"
         - name: PROM_PORT
           value: "8801"
-        image: docker.l5d.io/ghcr.io/lucchmielowski/emojivoto-emoji-svc:v11
+        image: ghcr.io/lucchmielowski/emojivoto-emoji-svc:latest
         name: emoji-svc
         ports:
         - containerPort: 8080

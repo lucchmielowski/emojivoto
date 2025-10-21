@@ -46,7 +46,7 @@ dev:
 
 # Deploy to local kubernetes
 deploy:
-	kubectl apply -f kustomize/deployment/
+	kubectl apply -k kustomize/deployment/
 
 # Run tests
 test:
