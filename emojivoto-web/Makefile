@@ -13,9 +13,9 @@ package-web: webpack
 	cp -a webapp/dist $(target_dir)
 
 compile-vote-bot:
-	GOOS=linux GOARCH=$(GOARCH) go build -v -o $(target_dir)/emojivoto-vote-bot cmd/vote-bot/main.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build -v -o $(target_dir)/emojivoto-vote-bot cmd/vote-bot/main.go
 
 compile-web:
-	GOOS=linux GOARCH=$(GOARCH) go build -v -o $(target_dir)/$(svc_name) cmd/server.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build -v -o $(target_dir)/$(svc_name) cmd/server.go
 
 compile: compile-web compile-vote-bot

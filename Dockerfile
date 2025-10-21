@@ -1,11 +1,13 @@
 ARG svc_name=emojivoto-emoji-svc
 
 # Build stage
-FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25 AS builder
 WORKDIR /build
 
 # Install build tools
-RUN apk add --no-cache protobuf-dev protoc build-base git make
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    protobuf-compiler build-essential git make && \
+    rm -rf /var/lib/apt/lists/*
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.31.0
 RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
 
@@ -20,9 +22,10 @@ ARG svc_name
 RUN export GOARCH=$TARGETARCH && make -C $svc_name clean protoc compile
 
 # Webpack stage for web service only
-FROM --platform=$BUILDPLATFORM node:20-alpine AS webpack
+FROM --platform=$BUILDPLATFORM node:20-bullseye AS webpack
 WORKDIR /build
-RUN apk add --no-cache make
+RUN apt-get update && apt-get install -y --no-install-recommends make && \
+    rm -rf /var/lib/apt/lists/*
 COPY . .
 RUN make -C emojivoto-web clean webpack package-web
 

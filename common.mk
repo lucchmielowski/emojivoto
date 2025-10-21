@@ -14,7 +14,7 @@ protoc:
 		--go-grpc_out=paths=source_relative:./gen
 
 compile: protoc
-	GOOS=linux GOARCH=$(GOARCH) go build -v -o $(target_dir)/$(svc_name) cmd/server.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build -v -o $(target_dir)/$(svc_name) cmd/server.go
 
 test:
 	go test ./...
