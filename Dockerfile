@@ -17,21 +17,14 @@ RUN go mod download
 COPY . .
 ARG TARGETARCH
 ARG svc_name
-RUN GOARCH=$TARGETARCH make -C $svc_name clean protoc compile
+RUN export GOARCH=$TARGETARCH && make -C $svc_name clean protoc compile
 
-# Webpack stage for web service
+# Webpack stage for web service only
 FROM --platform=$BUILDPLATFORM node:20-alpine AS webpack
 WORKDIR /build
 RUN apk add --no-cache make
 COPY . .
 RUN make -C emojivoto-web clean webpack package-web
-
-# Combine builds
-FROM builder AS build-web
-COPY --from=webpack /build/emojivoto-web/target/ /build/emojivoto-web/target/
-
-FROM builder AS build-emoji
-FROM builder AS build-voting
 
 # Runtime stage
 FROM debian:bullseye-slim
@@ -39,8 +32,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl dnsutils iptables jq nghttp2 && rm -rf /var/lib/apt/lists/*
 
 ARG svc_name
-COPY --from=build-$svc_name /build/$svc_name/target/ /usr/local/bin/
 
-ENV SVC_NAME=$svc_name
+# Copy the built binary
+COPY --from=builder /build/$svc_name/target/ /usr/local/bin/
+
+# For web service, also copy webpack assets
+COPY --from=webpack /build/emojivoto-web/target/ /usr/local/bin/
+
+ARG svc_name
 WORKDIR /usr/local/bin
-ENTRYPOINT ["/bin/sh", "-c", "exec \"$SVC_NAME\" \"$@\""]
+ENV SVC_NAME=$svc_name
+ENTRYPOINT ["/bin/sh", "-c", "exec \"/usr/local/bin/$SVC_NAME\" \"$@\""]

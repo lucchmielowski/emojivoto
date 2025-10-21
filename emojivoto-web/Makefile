@@ -1,6 +1,6 @@
 svc_name := emojivoto-web
 
-all: clean protoc webpack package-web test package
+all: clean protoc webpack package-web test
 
 include ../common.mk
 
@@ -13,6 +13,9 @@ package-web: webpack
 	cp -a webapp/dist $(target_dir)
 
 compile-vote-bot:
-	GOOS=linux go build -v -o $(target_dir)/emojivoto-vote-bot cmd/vote-bot/main.go
+	GOOS=linux GOARCH=$(GOARCH) go build -v -o $(target_dir)/emojivoto-vote-bot cmd/vote-bot/main.go
 
-compile: compile-vote-bot
+compile-web:
+	GOOS=linux GOARCH=$(GOARCH) go build -v -o $(target_dir)/$(svc_name) cmd/server.go
+
+compile: compile-web compile-vote-bot
